@@ -10,8 +10,11 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.LongSupplier;
@@ -27,14 +30,14 @@ public class Issue21356Test extends HazelcastTestSupport {
 
     @Before
     public void before() {
-        Config config = new Config();
-        String topicConfigName = "default";
-        ReliableTopicConfig topicConfig = new ReliableTopicConfig();
+        final Config config = new Config();
+        final String topicConfigName = "default";
+        final ReliableTopicConfig topicConfig = new ReliableTopicConfig();
         topicConfig.setName(topicConfigName);
         topicConfig.setStatisticsEnabled(true);
         topicConfig.setReadBatchSize(10);
         topicConfig.setTopicOverloadPolicy(TopicOverloadPolicy.BLOCK);
-        Map<String, ReliableTopicConfig> topicConfigs = new HashMap<>();
+        final Map<String, ReliableTopicConfig> topicConfigs = new HashMap<>();
         topicConfigs.put(topicConfigName, topicConfig);
         config.setReliableTopicConfigs(topicConfigs);
         instance = createHazelcastInstance(config);
@@ -44,8 +47,8 @@ public class Issue21356Test extends HazelcastTestSupport {
     @Test
     public void testTopicPublish() {
         instance.getTopic(topicName).publish(randomName());
-        long published = instance.getTopic(topicName).getLocalTopicStats().getPublishOperationCount();
-        long received = instance.getTopic(topicName).getLocalTopicStats().getReceiveOperationCount();
+        final long published = instance.getTopic(topicName).getLocalTopicStats().getPublishOperationCount();
+        final long received = instance.getTopic(topicName).getLocalTopicStats().getReceiveOperationCount();
         assertEquals(1, published);
         assertEquals(0, received); // we haven't consumed anything so this should remain 0
     }
@@ -85,29 +88,52 @@ public class Issue21356Test extends HazelcastTestSupport {
 
     @Test
     public void testReliableTopicPublish() {
-        instance.getReliableTopic(topicName).publish(randomName());
-        final long expectedPublished = 1;
-        final LongSupplier publishedOpCount = () -> instance.getReliableTopic(topicName).getLocalTopicStats().getPublishOperationCount();
-        waitUntilObserved(expectedPublished, publishedOpCount);
-        secondLook(SECOND_LOOKS, expectedPublished, 0, publishedOpCount, null);
+        testReliableTopicPublishN(1);
     }
 
+    @Test
+    public void testReliableTopicPublish_100() {
+        testReliableTopicPublishN(1_00);
+        assertEquals(1_00L, instance.getReliableTopic(topicName).getLocalTopicStats().getPublishOperationCount());
+    }
+
+    private void testReliableTopicPublishN(final int expectedPublishes) {
+        for (int i = 0; i < expectedPublishes; i++) {
+            instance.getReliableTopic(topicName).publish(randomName());
+        }
+        final LongSupplier publishedOpCount = () -> instance.getReliableTopic(topicName).getLocalTopicStats().getPublishOperationCount();
+        waitUntilObserved(expectedPublishes, publishedOpCount);
+        secondLook(SECOND_LOOKS, expectedPublishes, 0, publishedOpCount, null);
+    }
 
     @Test
-    public void testReliableTopicPublishConsume() throws ExecutionException, InterruptedException {
-        final String actualPayload = randomName();
-        final CompletableFuture<String> expectedPayload = new CompletableFuture<>();
-        instance.getReliableTopic(topicName).addMessageListener(message -> expectedPayload.complete((String) message.getMessageObject()));
-        instance.getReliableTopic(topicName).publish(actualPayload);
+    public void testReliableTopicPublishConsume() {
+        testReliableTopicPublishConsumeN(1, 1);
+    }
 
-        final long expectedPublished = 1;
-        final long expectedReceived = 1;
+    @Test
+    public void testReliableTopicPublishConsume_1000() {
+        testReliableTopicPublishConsumeN(1_000, 1_000);
+    }
+
+    private void testReliableTopicPublishConsumeN(final long expectedPublished, final long expectedReceived) {
+        final Set<String> publishedMessages = Collections.synchronizedSet(new HashSet<>());
+        final Set<String> receivedMessages = Collections.synchronizedSet(new HashSet<>());
+        instance.getReliableTopic(topicName).addMessageListener(message -> receivedMessages.add((String) message.getMessageObject()));
+        for (int i = 0; i < expectedPublished; i++) {
+            final String message = randomName();
+            instance.getReliableTopic(topicName).publish(message);
+            publishedMessages.add(message);
+        }
 
         final LongSupplier publishedOpCount = () -> instance.getReliableTopic(topicName).getLocalTopicStats().getPublishOperationCount();
         final LongSupplier receivedOpCount = () -> instance.getReliableTopic(topicName).getLocalTopicStats().getReceiveOperationCount();
+
         waitUntilObserved(expectedPublished, publishedOpCount);
         waitUntilObserved(expectedReceived, receivedOpCount);
         secondLook(SECOND_LOOKS, expectedPublished, expectedReceived, publishedOpCount, receivedOpCount);
-        assertEquals(actualPayload, expectedPayload.get());
+
+        assertEquals(expectedReceived, receivedMessages.size());
+        assertEquals(publishedMessages, receivedMessages);
     }
 }
