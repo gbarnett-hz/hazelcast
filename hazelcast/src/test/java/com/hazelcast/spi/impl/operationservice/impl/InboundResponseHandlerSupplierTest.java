@@ -16,6 +16,7 @@
 
 package com.hazelcast.spi.impl.operationservice.impl;
 
+import com.hazelcast.cluster.Address;
 import com.hazelcast.internal.nio.Packet;
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.internal.serialization.impl.DefaultSerializationServiceBuilder;
@@ -41,6 +42,7 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 
+import java.net.UnknownHostException;
 import java.util.Properties;
 import java.util.function.Consumer;
 
@@ -61,10 +63,11 @@ public class InboundResponseHandlerSupplierTest extends HazelcastTestSupport {
     private InboundResponseHandlerSupplier supplier;
 
     @Before
-    public void setup() {
+    public void setup() throws UnknownHostException {
         ILogger logger = Logger.getLogger(getClass());
         HazelcastProperties properties = new HazelcastProperties(new Properties());
-        invocationRegistry = new InvocationRegistry(logger, new CallIdSequenceWithoutBackpressure(), properties);
+        Address myAddress = new Address("localhost", 5701);
+        invocationRegistry = new InvocationRegistry(logger, new CallIdSequenceWithoutBackpressure(), properties, myAddress);
         serializationService = new DefaultSerializationServiceBuilder().build();
         nodeEngine = mock(NodeEngine.class);
         when(nodeEngine.getLogger(any(Class.class))).thenReturn(logger);

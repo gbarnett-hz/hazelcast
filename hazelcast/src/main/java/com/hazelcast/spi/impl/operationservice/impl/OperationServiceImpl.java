@@ -60,6 +60,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import static com.hazelcast.internal.metrics.MetricDescriptorConstants.OPERATION_METRIC_INVOCATION_REGISTRY_INVOCATIONS_PENDING_LOCAL;
 import static com.hazelcast.internal.metrics.MetricDescriptorConstants.OPERATION_METRIC_OPERATION_SERVICE_ASYNC_OPERATIONS;
 import static com.hazelcast.internal.metrics.MetricDescriptorConstants.OPERATION_METRIC_OPERATION_SERVICE_CALL_TIMEOUT_COUNT;
 import static com.hazelcast.internal.metrics.MetricDescriptorConstants.OPERATION_METRIC_OPERATION_SERVICE_FAILED_BACKUPS;
@@ -145,6 +146,7 @@ public final class OperationServiceImpl implements StaticMetricsProvider, LiveOp
     private final int invocationMaxRetryCount;
     private final long invocationRetryPauseMillis;
     private final boolean failOnIndeterminateOperationState;
+    private final Address myAddress;
 
     @SuppressWarnings("checkstyle:executablestatementcount")
     public OperationServiceImpl(NodeEngineImpl nodeEngine) {
@@ -170,7 +172,7 @@ public final class OperationServiceImpl implements StaticMetricsProvider, LiveOp
         this.invocationRegistry = new InvocationRegistry(
                 node.getLogger(OperationServiceImpl.class),
                 backpressureRegulator.newCallIdSequence(nodeEngine.getConcurrencyDetection()),
-                properties);
+                properties, node.getThisAddress());
 
         this.invocationMonitor = new InvocationMonitor(
                 nodeEngine, thisAddress, properties, invocationRegistry,
@@ -192,6 +194,7 @@ public final class OperationServiceImpl implements StaticMetricsProvider, LiveOp
         this.slowOperationDetector = new SlowOperationDetector(node.loggingService,
                 operationExecutor.getGenericOperationRunners(), operationExecutor.getPartitionOperationRunners(),
                 properties, hzName);
+        this.myAddress = node.getThisAddress();
     }
 
     public Set<Operation> getAsyncOperations() {

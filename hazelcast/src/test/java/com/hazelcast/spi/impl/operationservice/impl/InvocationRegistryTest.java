@@ -16,6 +16,7 @@
 
 package com.hazelcast.spi.impl.operationservice.impl;
 
+import com.hazelcast.cluster.Address;
 import com.hazelcast.core.HazelcastInstanceNotActiveException;
 import com.hazelcast.core.MemberLeftException;
 import com.hazelcast.internal.util.ConcurrencyDetection;
@@ -33,6 +34,7 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
+import java.net.UnknownHostException;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 
@@ -48,14 +50,16 @@ public class InvocationRegistryTest extends HazelcastTestSupport {
 
     private InvocationRegistry invocationRegistry;
     private ILogger logger;
+    private Address myAddress;
 
     @Before
-    public void setup() {
+    public void setup() throws UnknownHostException {
         logger = Mockito.mock(ILogger.class);
         int capacity = 2;
         CallIdSequenceWithBackpressure callIdSequence = new CallIdSequenceWithBackpressure(capacity, 1000, ConcurrencyDetection.createDisabled());
         HazelcastProperties properties = new HazelcastProperties(new Properties());
-        invocationRegistry = new InvocationRegistry(logger, callIdSequence, properties);
+        invocationRegistry = new InvocationRegistry(logger, callIdSequence, properties, myAddress);
+        myAddress = new Address("localhost", 5701);
     }
 
     private Invocation newInvocation() {

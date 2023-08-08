@@ -16,6 +16,7 @@
 
 package com.hazelcast.spi.impl.operationservice.impl;
 
+import com.hazelcast.cluster.Address;
 import com.hazelcast.core.HazelcastInstanceNotActiveException;
 import com.hazelcast.core.HazelcastOverloadException;
 import com.hazelcast.core.MemberLeftException;
@@ -36,9 +37,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.hazelcast.internal.metrics.MetricDescriptorConstants.OPERATION_METRIC_INVOCATION_REGISTRY_INVOCATIONS_LAST_CALL_ID;
 import static com.hazelcast.internal.metrics.MetricDescriptorConstants.OPERATION_METRIC_INVOCATION_REGISTRY_INVOCATIONS_PENDING;
+import static com.hazelcast.internal.metrics.MetricDescriptorConstants.OPERATION_METRIC_INVOCATION_REGISTRY_INVOCATIONS_PENDING_LOCAL;
+import static com.hazelcast.internal.metrics.MetricDescriptorConstants.OPERATION_METRIC_INVOCATION_REGISTRY_INVOCATIONS_PENDING_REMOTE;
 import static com.hazelcast.internal.metrics.MetricDescriptorConstants.OPERATION_METRIC_INVOCATION_REGISTRY_INVOCATIONS_USED_PERCENTAGE;
 import static com.hazelcast.internal.metrics.MetricDescriptorConstants.OPERATION_PREFIX_INVOCATIONS;
 import static com.hazelcast.internal.metrics.ProbeLevel.MANDATORY;
@@ -76,15 +80,21 @@ public class InvocationRegistry implements Iterable<Invocation>, StaticMetricsPr
 
     @Probe(name = OPERATION_METRIC_INVOCATION_REGISTRY_INVOCATIONS_PENDING, level = MANDATORY)
     private final ConcurrentMap<Long, Invocation> invocations;
+    @Probe(name = OPERATION_METRIC_INVOCATION_REGISTRY_INVOCATIONS_PENDING_LOCAL)
+    private final AtomicLong pendingLocal;
+    @Probe(name = OPERATION_METRIC_INVOCATION_REGISTRY_INVOCATIONS_PENDING_REMOTE)
+    private final AtomicLong pendingRemote;
     private final ILogger logger;
     private final CallIdSequence callIdSequence;
     private final boolean profilerEnabled;
     private final ConcurrentMap<Class, LatencyDistribution> latencyDistributions = new ConcurrentHashMap<>();
+    private final Address myAddress;
     private volatile boolean alive = true;
 
-    public InvocationRegistry(ILogger logger, CallIdSequence callIdSequence, HazelcastProperties properties) {
+    public InvocationRegistry(ILogger logger, CallIdSequence callIdSequence, HazelcastProperties properties, Address myAddress) {
         this.logger = logger;
         this.callIdSequence = callIdSequence;
+        this.myAddress = myAddress;
 
         int coreSize = RuntimeAvailableProcessors.get();
         boolean reallyMultiCore = coreSize >= CORE_SIZE_CHECK;
@@ -92,6 +102,8 @@ public class InvocationRegistry implements Iterable<Invocation>, StaticMetricsPr
 
         this.invocations = new ConcurrentHashMap<>(INITIAL_CAPACITY, LOAD_FACTOR, concurrencyLevel);
         this.profilerEnabled = properties.getInteger(InvocationProfilerPlugin.PERIOD_SECONDS) > 0;
+        this.pendingLocal = new AtomicLong();
+        this.pendingRemote = new AtomicLong();
     }
 
     @Override
@@ -135,12 +147,52 @@ public class InvocationRegistry implements Iterable<Invocation>, StaticMetricsPr
             callIdSequence.complete();
             throw e;
         }
-        invocations.put(callId, invocation);
+        boolean callIdAdded = invocations.put(callId, invocation) == null;
+        incrementPendingLocalAndRemoteCounters(invocation, callIdAdded);
         if (!alive) {
             invocation.notifyError(new HazelcastInstanceNotActiveException());
             return false;
         }
         return true;
+    }
+
+    void incrementPendingLocalAndRemoteCounters(Invocation invocation, boolean callIdAdded) {
+        updatePendingLocalAndRemoteCounters(invocation, callIdAdded, true);
+    }
+
+    void decrementPendingLocalAndRemoteCounters(Invocation invocation, boolean callIdRemoved) {
+        updatePendingLocalAndRemoteCounters(invocation, callIdRemoved, false);
+    }
+
+    // Note. this logic only works when we use CMH and use it in the way that we do, namely: put, remove + the CMH invariants
+    // regarding nulls. Without non-trivial redesign of the way we track invocations it looks like this is half decent compromise for tracking
+    // these figures at the cost of them momentarily being out-of-sync with what the [invocations] mapping reports which is
+    // exposed via JXM operations.invocations.pending.
+    private void updatePendingLocalAndRemoteCounters(Invocation invocation, boolean callIdAddedOrRemoved, boolean isIncrement) {
+        if (!callIdAddedOrRemoved) {
+            return;
+        }
+
+        Address targetAddress = invocation.getTargetAddress();
+        if (targetAddress == null) {
+            // need to check: if target address is null, is it local?
+            // is this even correct means to determine local vs. remote?
+            return;
+        }
+
+        if (targetAddress.equals(myAddress)) {
+            if (isIncrement) {
+                pendingLocal.incrementAndGet();
+            } else {
+                pendingLocal.decrementAndGet();
+            }
+        } else {
+            if (isIncrement) {
+                pendingRemote.incrementAndGet();
+            } else {
+                pendingRemote.decrementAndGet();
+            }
+        }
     }
 
     /**
@@ -154,7 +206,8 @@ public class InvocationRegistry implements Iterable<Invocation>, StaticMetricsPr
         if (!deactivate(invocation.op)) {
             return false;
         }
-        invocations.remove(invocation.op.getCallId());
+        boolean callIdRemoved = invocations.remove(invocation.op.getCallId()) != null;
+        decrementPendingLocalAndRemoteCounters(invocation, callIdRemoved);
         callIdSequence.complete();
         return true;
     }
