@@ -17,6 +17,7 @@
 package com.hazelcast.config;
 
 import com.hazelcast.internal.config.ConfigDataSerializerHook;
+import com.hazelcast.internal.serialization.Data;
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
@@ -52,9 +53,12 @@ public class WanConsumerConfig implements IdentifiedDataSerializable {
     public static final boolean DEFAULT_PERSIST_WAN_REPLICATED_DATA = false;
 
     private boolean persistWanReplicatedData = DEFAULT_PERSIST_WAN_REPLICATED_DATA;
-    private String className;
+    private String className; // <-- required
     private WanConsumer implementation;
     private Map<String, Comparable> properties = new HashMap<>();
+
+    public WanConsumerConfig(boolean persistWanReplicatedData, String className, Map<String, Data> properties) {
+    }
 
     /**
      * Returns the properties for the custom WAN consumer.

@@ -356,7 +356,6 @@ public class ClientDynamicClusterConfig extends Config {
 
     @Override
     public Config addWanReplicationConfig(WanReplicationConfig wanReplicationConfig) {
-        Data consumerConfig = serializationService.toData(wanReplicationConfig.getConsumerConfig());
         List<Data> customPublisherConfigs =
                 wanReplicationConfig.getCustomPublisherConfigs()
                                     .stream()
@@ -370,7 +369,10 @@ public class ClientDynamicClusterConfig extends Config {
                                     .map(batchPublisherConfig -> (Data) serializationService.toData(batchPublisherConfig))
                                     .collect(Collectors.toList());
         ClientMessage request = DynamicConfigAddWanReplicationConfigCodec.encodeRequest(
-                wanReplicationConfig.getName(), consumerConfig, customPublisherConfigs, batchPublisherConfigs);
+                wanReplicationConfig.getName(),
+                wanReplicationConfig.getConsumerConfig(),
+                customPublisherConfigs,
+                batchPublisherConfigs);
         invoke(request);
         return this;
     }
