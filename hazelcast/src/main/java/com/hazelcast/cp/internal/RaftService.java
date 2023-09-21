@@ -546,6 +546,7 @@ public class RaftService implements ManagedService, SnapshotAwareService<Metadat
                     return true;
                 }
 
+                publishGroupAvailabilityEvents(nodeEngine.getLocalMember());
                 invokeTriggerRemoveMember(member).get();
                 logger.fine(member + " is marked as being removed.");
                 break;

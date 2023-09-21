@@ -79,6 +79,30 @@ public class CPGroupAvailabilityListenerTest extends HazelcastRaftTestSupport {
     }
 
     @Test
+    public void whenMemberShutdown_thenReceiveEvents() throws Exception {
+        CountingDownCPGroupAvailabilityListener listener = new CountingDownCPGroupAvailabilityListener(1, 1);
+
+        HazelcastInstance[] instances = newInstances(5);
+        instances[1].getCPSubsystem().addGroupAvailabilityListener(listener);
+
+        instances[0].getLifecycleService().shutdown();
+        assertOpenEventually(listener.availabilityLatch);
+        assertEquals(1, listener.availabilityEventCount.get());
+
+        instances[4].getLifecycleService().shutdown();
+        assertFalse(listener.majorityLatch.await(1, TimeUnit.SECONDS));
+        assertEquals(2, listener.availabilityEventCount.get());
+
+        instances[2].getLifecycleService().shutdown();
+        assertFalse(listener.majorityLatch.await(1, TimeUnit.SECONDS));
+        assertEquals(3, listener.availabilityEventCount.get());
+
+        instances[3].getLifecycleService().shutdown();
+        assertFalse(listener.majorityLatch.await(1, TimeUnit.SECONDS));
+        assertEquals(4, listener.availabilityEventCount.get());
+    }
+
+    @Test
     public void whenListenerDeregistered_thenNoEventsReceived() {
         CountingDownCPGroupAvailabilityListener listener = new CountingDownCPGroupAvailabilityListener(1, 1);
 
