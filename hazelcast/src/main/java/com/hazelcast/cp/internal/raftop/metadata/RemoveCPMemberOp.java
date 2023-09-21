@@ -38,17 +38,19 @@ public class RemoveCPMemberOp extends MetadataRaftGroupOp implements Indetermina
                                                                      IdentifiedDataSerializable {
 
     private CPMemberInfo member;
+    private boolean isShutdown;
 
     public RemoveCPMemberOp() {
     }
 
-    public RemoveCPMemberOp(CPMemberInfo member) {
+    public RemoveCPMemberOp(CPMemberInfo member, boolean shutdown) {
         this.member = member;
+        this.isShutdown = shutdown;
     }
 
     @Override
     public Object run(MetadataRaftGroupManager metadataGroupManager, long commitIndex) {
-        if (metadataGroupManager.removeMember(commitIndex, member)) {
+        if (metadataGroupManager.removeMember(commitIndex, member, isShutdown)) {
             return null;
         }
 
@@ -57,6 +59,10 @@ public class RemoveCPMemberOp extends MetadataRaftGroupOp implements Indetermina
 
     public CPMemberInfo getMember() {
         return member;
+    }
+
+    public boolean isShutdown() {
+        return isShutdown;
     }
 
     @Override
@@ -77,15 +83,18 @@ public class RemoveCPMemberOp extends MetadataRaftGroupOp implements Indetermina
     @Override
     public void writeData(ObjectDataOutput out) throws IOException {
         out.writeObject(member);
+        // this should be version gated
+        out.writeBoolean(isShutdown);
     }
 
     @Override
     public void readData(ObjectDataInput in) throws IOException {
         member = in.readObject();
+        isShutdown = in.readBoolean();
     }
 
     @Override
     protected void toString(StringBuilder sb) {
-        sb.append(", member=").append(member);
+        sb.append(", member=").append(member).append(",shutdown=").append(isShutdown); // ditto on this
     }
 }

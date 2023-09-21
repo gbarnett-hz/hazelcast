@@ -532,50 +532,13 @@ public class RaftService implements ManagedService, SnapshotAwareService<Metadat
 
         logger.fine("Triggering remove member procedure for " + localMember);
 
-        Map<CPGroupId, Collection<CPMember>> myMemberships = getMyMemberships(localMember);
         if (ensureCPMemberRemoved(localMember, unit.toNanos(timeout))) {
-            publishGracefulShutdownEvents(myMemberships, localMember);
             return true;
         }
 
         logger.fine("Remove member procedure NOT completed for " + localMember + " in " + unit.toMillis(timeout) + " ms.");
         return false;
     }
-
-    void publishGracefulShutdownEvents(Map<CPGroupId, Collection<CPMember>> myMemberships, CPMemberInfo me) {
-        for (Map.Entry<CPGroupId, Collection<CPMember>> myMembership : myMemberships.entrySet()) {
-            ArrayList<CPMember> unavailable = new ArrayList<>();
-            // TODO this should also include others that are missing -- but, they are already removed from group
-            unavailable.add(me);
-            List<CPMember> availableWithoutMe =
-                    myMembership.getValue().stream()
-                                .filter(member -> !member.getUuid().equals(me.getUuid()))
-                                .collect(Collectors.toList());
-            CPGroupAvailabilityEventGracefulImpl e =
-                    new CPGroupAvailabilityEventGracefulImpl(
-                            myMembership.getKey(),
-                            availableWithoutMe,
-                            unavailable);
-
-            nodeEngine.getEventService().publishEvent(SERVICE_NAME, EVENT_TOPIC_AVAILABILITY, e,
-                    EVENT_TOPIC_AVAILABILITY.hashCode());
-        }
-    }
-
-   Map<CPGroupId, Collection<CPMember>> getMyMemberships(CPMemberInfo me) {
-       Map<CPGroupId, Collection<CPMember>> myMemberships = new HashMap<>();
-       UUID myUuid = me.getUuid();
-       for (CPGroupId groupId : metadataGroupManager.getActiveGroupIds()) {
-           CPGroupSummary group = metadataGroupManager.getGroup(groupId);
-           for (CPMember member : group.members()) {
-               if (member.getUuid().equals(myUuid)) {
-                   myMemberships.put(groupId, group.members());
-                   break;
-               }
-           }
-       }
-       return myMemberships;
-   }
 
     private boolean ensureCPMemberRemoved(CPMemberInfo member, long remainingTimeNanos) {
         while (remainingTimeNanos > 0) {
@@ -586,7 +549,7 @@ public class RaftService implements ManagedService, SnapshotAwareService<Metadat
                     return true;
                 }
 
-                invokeTriggerRemoveMember(member).get();
+                invokeTriggerRemoveMemberShutdown(member).get();
                 logger.fine(member + " is marked as being removed.");
                 break;
             } catch (ExecutionException e) {
@@ -1085,9 +1048,16 @@ public class RaftService implements ManagedService, SnapshotAwareService<Metadat
     }
 
     private InternalCompletableFuture<Void> invokeTriggerRemoveMember(CPMemberInfo member) {
-        return invocationManager.invoke(getMetadataGroupId(), new RemoveCPMemberOp(member));
+        return invokeTriggerRemoveMember(member, false);
     }
 
+    private InternalCompletableFuture<Void> invokeTriggerRemoveMemberShutdown(CPMemberInfo member) {
+        return invokeTriggerRemoveMember(member, true);
+    }
+
+    private InternalCompletableFuture<Void> invokeTriggerRemoveMember(CPMemberInfo member, boolean isShutdown) {
+        return invocationManager.invoke(getMetadataGroupId(), new RemoveCPMemberOp(member, isShutdown));
+    }
     private static <T> InternalCompletableFuture<T> complete(InternalCompletableFuture<T> future, Throwable t) {
         future.completeExceptionally(t);
         return future;

@@ -21,8 +21,11 @@ import com.hazelcast.config.cp.CPSubsystemConfig;
 import com.hazelcast.core.HazelcastException;
 import com.hazelcast.cp.CPGroup.CPGroupStatus;
 import com.hazelcast.cp.CPGroupId;
+import com.hazelcast.cp.CPMember;
+import com.hazelcast.cp.event.CPGroupAvailabilityEvent;
 import com.hazelcast.cp.event.CPMembershipEvent;
 import com.hazelcast.cp.event.CPMembershipEvent.EventType;
+import com.hazelcast.cp.event.impl.CPGroupAvailabilityEventGracefulImpl;
 import com.hazelcast.cp.event.impl.CPMembershipEventImpl;
 import com.hazelcast.cp.exception.CPGroupDestroyedException;
 import com.hazelcast.cp.internal.exception.CannotCreateRaftGroupException;
@@ -74,6 +77,7 @@ import static com.hazelcast.cp.CPGroup.METADATA_CP_GROUP_NAME;
 import static com.hazelcast.cp.internal.MembershipChangeSchedule.CPGroupMembershipChange;
 import static com.hazelcast.cp.internal.RaftService.CP_SUBSYSTEM_EXECUTOR;
 import static com.hazelcast.cp.internal.RaftService.CP_SUBSYSTEM_MANAGEMENT_EXECUTOR;
+import static com.hazelcast.cp.internal.RaftService.EVENT_TOPIC_AVAILABILITY;
 import static com.hazelcast.cp.internal.RaftService.EVENT_TOPIC_MEMBERSHIP;
 import static com.hazelcast.cp.internal.RaftService.SERVICE_NAME;
 import static com.hazelcast.internal.metrics.MetricDescriptorConstants.CP_METRIC_METADATA_RAFT_GROUP_MANAGER_ACTIVE_MEMBERS;
@@ -683,7 +687,7 @@ public class MetadataRaftGroupManager implements SnapshotAwareService<MetadataRa
     /**
      * this method is idempotent
      */
-    public boolean removeMember(long commitIndex, CPMemberInfo leavingMember) {
+    public boolean removeMember(long commitIndex, CPMemberInfo leavingMember, boolean isShutdown) {
         checkNotNull(leavingMember);
         checkMetadataGroupInitSuccessful();
 
@@ -713,6 +717,10 @@ public class MetadataRaftGroupManager implements SnapshotAwareService<MetadataRa
             throw new CannotRemoveCPMemberException(msg);
         }
 
+        if (isShutdown && isMetadataGroupLeader()) {
+            publishShutdownAvailabilityEvents(leavingMember);
+        }
+
         if (activeMembers.size() == 2) {
             // There are two CP members.
             // If this operation is committed, it means both CP members have appended this operation.
@@ -730,6 +738,28 @@ public class MetadataRaftGroupManager implements SnapshotAwareService<MetadataRa
         }
 
         return initMembershipChangeScheduleForLeavingMember(commitIndex, leavingMember);
+    }
+
+    private void publishShutdownAvailabilityEvents(CPMemberInfo leavingMember) {
+        Map<CPGroupId, Collection<CPMember>> impactedCpGroups = new HashMap<>();
+        for (CPGroupId cpGroupId : getActiveGroupIds()) {
+            CPGroupSummary summary = getGroup(cpGroupId);
+            for (CPMember cpMember : summary.members()) {
+                if (cpMember.getUuid().equals(leavingMember.getUuid())) {
+                    impactedCpGroups.put(cpGroupId, summary.members());
+                    break;
+                }
+            }
+        }
+
+        // I'm the only one gone(missing); simple logic
+        List<CPMember> missing = List.of(leavingMember);
+
+        for (Map.Entry<CPGroupId, Collection<CPMember>> e : impactedCpGroups.entrySet()) {
+            CPGroupAvailabilityEvent event = new CPGroupAvailabilityEventGracefulImpl(e.getKey(), e.getValue(), missing);
+            nodeEngine.getEventService()
+                      .publishEvent(SERVICE_NAME, EVENT_TOPIC_AVAILABILITY, event, EVENT_TOPIC_AVAILABILITY.hashCode());
+        }
     }
 
     private boolean initMembershipChangeScheduleForLeavingMember(long commitIndex, CPMemberInfo leavingMember) {

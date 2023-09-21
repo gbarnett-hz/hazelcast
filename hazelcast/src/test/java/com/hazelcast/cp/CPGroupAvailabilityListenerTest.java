@@ -30,6 +30,9 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -137,79 +140,80 @@ public class CPGroupAvailabilityListenerTest extends HazelcastRaftTestSupport {
         }
     }
 
-    static class GracefulShutdownAvailabilityListener
-            implements CPGroupAvailabilityListener {
-        private final AtomicInteger handlerHits;
+    static class GracefulShutdownAvailabilityListener implements CPGroupAvailabilityListener {
+        private final List<CPMember> memberShutdown;
 
         GracefulShutdownAvailabilityListener() {
-            handlerHits = new AtomicInteger();
+            memberShutdown = Collections.synchronizedList(new ArrayList<>());
         }
 
         @Override
         public void availabilityDecreased(CPGroupAvailabilityEvent event) {
             if (event instanceof CPGroupAvailabilityEventGracefulImpl) {
-                handlerHits.incrementAndGet();
+                memberShutdown.addAll(event.getUnavailableMembers());
             }
         }
 
-        // majority is completely broken in this scenario
         @Override
         public void majorityLost(CPGroupAvailabilityEvent event) {
             if (event instanceof CPGroupAvailabilityEventGracefulImpl) {
-                handlerHits.incrementAndGet();
+                memberShutdown.addAll(event.getUnavailableMembers());
             }
+        }
+
+        void resetState() {
+            memberShutdown.clear();
         }
     }
 
     @Test
-    public void whenMemberShutdown_thenReceiveEvents3Graceful() {
-        GracefulShutdownAvailabilityListener listener = new GracefulShutdownAvailabilityListener();
-
-        HazelcastInstance[] instances = newInstances(3);
-        HazelcastInstance member1 = instances[0];
-        HazelcastInstance member2 = instances[1];
-        HazelcastInstance member3 = instances[2];
-        member2.getCPSubsystem().addGroupAvailabilityListener(listener);
-        member3.getCPSubsystem().addGroupAvailabilityListener(listener);
-
-        int expectedAvailabilityEvents = 2;
-        member1.getLifecycleService().shutdown();
-        assertEqualsEventually(expectedAvailabilityEvents, listener.handlerHits);
-
-        expectedAvailabilityEvents += 1;
-        member2.getLifecycleService().shutdown();
-        // majority lost ---
-        assertEqualsEventually(expectedAvailabilityEvents, listener.handlerHits);
+    public void whenMemberShutdown_thenReceiveEventsGracefulEvents_5() {
+        whenMemberShutdown_thenReceiveGracefulEvents(5);
     }
 
     @Test
-    public void whenMemberShutdown_thenReceiveEvents5Graceful() {
+    public void whenMemberShutdown_thenReceiveEventsGracefulEvents_3() {
+        whenMemberShutdown_thenReceiveGracefulEvents(3);
+    }
+
+    public void whenMemberShutdown_thenReceiveGracefulEvents(int cpNodeCount) {
         GracefulShutdownAvailabilityListener listener = new GracefulShutdownAvailabilityListener();
+        HazelcastInstance[] instances = newInstances(cpNodeCount);
+        // (1) attach listener to each instance
+        for (HazelcastInstance instance : instances) {
+            instance.getCPSubsystem().addGroupAvailabilityListener(listener);
+        }
 
-        HazelcastInstance[] instances = newInstances(5);
-        instances[1].getCPSubsystem().addGroupAvailabilityListener(listener);
-        instances[2].getCPSubsystem().addGroupAvailabilityListener(listener);
-        instances[3].getCPSubsystem().addGroupAvailabilityListener(listener);
-        instances[4].getCPSubsystem().addGroupAvailabilityListener(listener);
+        int instancesToShutdown = instances.length - 1;
+        int actualInstancesShutdown = 0;
+        // (2) cycle through each instance except the last, shutting each down in-turn
+        AtomicInteger minimumEventsExpectedToBeHandled = new AtomicInteger();
+        for (int i = 0, membersToDiscount = 1; i < instancesToShutdown; i++, membersToDiscount++) {
+            listener.resetState();
 
-        int expectedAvailabilityEvents = 4;
-        instances[0].getLifecycleService().shutdown();
-        assertEqualsEventually(expectedAvailabilityEvents, listener.handlerHits);
+            CPMember expectedCpMemberShutdown = instances[i].getCPSubsystem().getLocalCPMember();
+            // min. expected number of handlers invoked is always (-membersToDiscount) because we have scenarios like the following
+            // m1(shutting-down),m2,m3
+            // here, we expect at least two members to handle the graceful event (m2, m3); m1 can still handle the event but there's
+            // no certainty in this as it's in the process of shutting down
+            minimumEventsExpectedToBeHandled.set(instances.length - membersToDiscount);
+            instances[i].getLifecycleService().shutdown();
+            assertTrueEventually(() -> assertTrue(listener.memberShutdown.size() >= minimumEventsExpectedToBeHandled.get()));
+            sleepMillis(2_000); // time to settle to see if the shutdown member actually handled the event or not
+            // there's always a (+1) because the instance shutdown may/may not have had time to handle the event when it was
+            // shutting down
+            assertTrue(listener.memberShutdown.size() <= (minimumEventsExpectedToBeHandled.get() + 1));
 
-        instances[1].getLifecycleService().shutdown();
-        int remainingMembers = 3;
-        expectedAvailabilityEvents += remainingMembers;
-        assertEqualsEventually(expectedAvailabilityEvents, listener.handlerHits);
+            // check that the member shutdown event carried the CP member we expected to be shutdown
+            for (CPMember cpMemberShutdown : listener.memberShutdown) {
+                assertEquals(expectedCpMemberShutdown, cpMemberShutdown);
+            }
 
-        instances[2].getLifecycleService().shutdown();
-        // majority should be lost here surely...
-        remainingMembers = 2;
-        expectedAvailabilityEvents += remainingMembers;
-        assertEqualsEventually(expectedAvailabilityEvents, listener.handlerHits);
+            actualInstancesShutdown++;
+        }
 
-        instances[3].getLifecycleService().shutdown();
-        remainingMembers = 1;
-        expectedAvailabilityEvents += remainingMembers;
-        assertEqualsEventually(expectedAvailabilityEvents, listener.handlerHits);
+        assertEquals(instancesToShutdown, actualInstancesShutdown);
+
+        // we don't shut down the remaining member
     }
 }

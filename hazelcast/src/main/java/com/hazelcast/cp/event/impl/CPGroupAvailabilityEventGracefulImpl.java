@@ -31,7 +31,10 @@ import java.util.Objects;
 import static com.hazelcast.internal.serialization.impl.SerializationUtil.readCollection;
 import static com.hazelcast.internal.serialization.impl.SerializationUtil.writeCollection;
 
-// it's probably easier to just add a flag to the existing availability message, e.g. isShutdown -- default value of false
+// note: this can also be published when you remove a member, see RaftService#removeCpMember
+// so, maybe it's better to actually call this something else or figure out a way to discriminate between the two
+// or...graceful may just imply that the availability is a side effect of a user action -- we could modify the op to take additional
+// flag -- shutdown vs. remove (default)
 public class CPGroupAvailabilityEventGracefulImpl implements CPGroupAvailabilityEvent, IdentifiedDataSerializable {
     private CPGroupId groupId;
     private Collection<CPMember> members;
