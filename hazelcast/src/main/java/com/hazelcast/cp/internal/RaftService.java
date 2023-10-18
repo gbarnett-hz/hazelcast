@@ -998,7 +998,7 @@ public class RaftService implements ManagedService, SnapshotAwareService<Metadat
         }, internalAsyncExecutor);
     }
 
-    public RaftGroupId createRaftGroupForProxy(String name) {
+    public RaftGroupId createRaftGroupForProxy(String name) { // make sure cp group exists
         String groupName = getGroupNameForProxy(name);
         if (cpSubsystemEnabled) {
             try {

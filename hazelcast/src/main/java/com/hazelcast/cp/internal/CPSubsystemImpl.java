@@ -20,6 +20,7 @@ import com.hazelcast.core.DistributedObject;
 import com.hazelcast.core.HazelcastException;
 import com.hazelcast.cp.CPGroup;
 import com.hazelcast.cp.CPGroupId;
+import com.hazelcast.cp.CPMap;
 import com.hazelcast.cp.CPMember;
 import com.hazelcast.cp.event.CPGroupAvailabilityListener;
 import com.hazelcast.cp.event.CPMembershipListener;
@@ -33,6 +34,7 @@ import com.hazelcast.cp.internal.datastructures.atomiclong.AtomicLongService;
 import com.hazelcast.cp.internal.datastructures.atomicref.AtomicRefService;
 import com.hazelcast.cp.internal.datastructures.countdownlatch.CountDownLatchService;
 import com.hazelcast.cp.internal.datastructures.lock.LockService;
+import com.hazelcast.cp.internal.datastructures.map.proxy.CPMapService;
 import com.hazelcast.cp.internal.datastructures.semaphore.SemaphoreService;
 import com.hazelcast.cp.internal.datastructures.spi.RaftRemoteService;
 import com.hazelcast.cp.internal.session.RaftSessionService;
@@ -165,6 +167,12 @@ public class CPSubsystemImpl implements CPSubsystem {
     public boolean removeGroupAvailabilityListener(UUID id) {
         RaftService raftService = getService(RaftService.SERVICE_NAME);
         return raftService.removeAvailabilityListener(id);
+    }
+
+    @Override
+    public <K, V> CPMap<K, V> getMap(String name) {
+        checkNotNull(name, "Retrieving a map instance with a null name is not allowed!");
+        return createProxy(CPMapService.SERVICE_NAME, name);
     }
 
     private static class CPSubsystemManagementServiceImpl implements CPSubsystemManagementService {
