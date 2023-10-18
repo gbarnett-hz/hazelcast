@@ -151,7 +151,7 @@ public interface BaseMap<K, V> extends DistributedObject {
      * @return The previous value associated with {@code key}, or {@code null}
      * if there was no mapping for {@code key}.
      */
-    V remove(Object key);
+    V remove(Object key); // GB: done
 
 
     /**
@@ -164,7 +164,7 @@ public interface BaseMap<K, V> extends DistributedObject {
      *
      * @param key Remove the mapping for this key.
      */
-    void delete(Object key);
+    void delete(Object key); // GB: done
 
     /**
      * Removes the entry for a key only if currently mapped to a given value.
@@ -188,7 +188,6 @@ public interface BaseMap<K, V> extends DistributedObject {
      * @return <code>true</code> if this map contains no entries.
      */
     boolean isEmpty();
-
     /**
      * Returns the number of entries in this map.
      *

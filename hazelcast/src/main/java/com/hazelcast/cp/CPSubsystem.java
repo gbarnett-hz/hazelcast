@@ -558,5 +558,5 @@ public interface CPSubsystem {
      */
     boolean removeGroupAvailabilityListener(UUID id);
 
-    <K, V> CPMap<K, V> getMap(String name);
+    <K, V> ICPMap<K, V> getMap(String name);
 }

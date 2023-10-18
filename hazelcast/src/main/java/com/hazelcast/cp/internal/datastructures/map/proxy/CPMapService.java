@@ -18,27 +18,29 @@ package com.hazelcast.cp.internal.datastructures.map.proxy;
 
 import com.hazelcast.core.DistributedObject;
 import com.hazelcast.cp.CPGroupId;
+import com.hazelcast.cp.internal.RaftGroupId;
+import com.hazelcast.cp.internal.RaftService;
 import com.hazelcast.cp.internal.datastructures.spi.RaftManagedService;
 import com.hazelcast.cp.internal.datastructures.spi.RaftRemoteService;
-import com.hazelcast.internal.serialization.Data;
-import com.hazelcast.internal.util.BiTuple;
 import com.hazelcast.spi.impl.NodeEngine;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class CPMapService implements RaftManagedService, RaftRemoteService {
     public static final String SERVICE_NAME = "hz:raft:mapService";
 
     // state def= (cpgroup, object-name) |-> (Data(K) |-> Data(V))
-    private final Map<BiTuple<CPGroupId, String>, HashMap<Data, Data>> state;
+    private final CPMapRegistry mapRegistry;
     private final NodeEngine nodeEngine;
+    private volatile RaftService raftService; // volatile - I think due to some other thread potentially calling init
 
     public CPMapService(NodeEngine nodeEngine) {
-        state = new ConcurrentHashMap<>();
+        mapRegistry = new CPMapRegistry();
         this.nodeEngine = nodeEngine;
+    }
+
+    public CPMapRegistry getMapRegistry() {
+        return mapRegistry;
     }
 
     @Override
@@ -47,7 +49,8 @@ public class CPMapService implements RaftManagedService, RaftRemoteService {
 
     @Override
     public DistributedObject createProxy(String objectName) { // RaftRemoteService
-        return new CPMapProxy<>(objectName);
+        RaftGroupId groupId = raftService.createRaftGroupForProxy(objectName);
+        return new CPMapProxy<>(nodeEngine, groupId, objectName);
     }
 
     @Override
@@ -57,8 +60,8 @@ public class CPMapService implements RaftManagedService, RaftRemoteService {
     }
 
     @Override
-    public void init(NodeEngine nodeEngine, Properties properties) { // ManagedService
-
+    public void init(NodeEngine nodeEngine, Properties properties) { // ManagedService, called after ctor
+        raftService = nodeEngine.getService(RaftService.SERVICE_NAME);
     }
 
     @Override

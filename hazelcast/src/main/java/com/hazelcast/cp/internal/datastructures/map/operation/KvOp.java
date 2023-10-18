@@ -14,10 +14,33 @@
  * limitations under the License.
  */
 
-package com.hazelcast.cp;
+package com.hazelcast.cp.internal.datastructures.map.operation;
 
-import com.hazelcast.core.DistributedObject;
-import com.hazelcast.map.BaseMap;
+public enum KvOp {
+    PUT_ALWAYS(0),
+    PUT_IF_ABSENT(1),
+    PUT_REPLACE(2);
 
-public interface CPMap<K, V> extends BaseMap<K, V> {
+    private final int id;
+
+    KvOp(int id) {
+        this.id = id;
+    }
+
+    int getId() {
+        return id;
+    }
+
+    static KvOp fromId(int id) {
+        switch (id) {
+            case 0:
+                return PUT_ALWAYS;
+            case 1:
+                return PUT_IF_ABSENT;
+            case 2:
+                return PUT_REPLACE;
+            default:
+                throw new IllegalArgumentException("Unknown ID: " + id);
+        }
+    }
 }

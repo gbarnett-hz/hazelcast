@@ -16,15 +16,16 @@
 
 package com.hazelcast.client.cp.internal.datastructures.map;
 
-import com.hazelcast.cp.CPMap;
+import com.hazelcast.cp.ICPMap;
 import com.hazelcast.query.Predicate;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-// client proxy
-public class CPMapProxy<K, V> implements CPMap<K, V> {
+// client proxy -- nothing implemented here
+public class CPMapProxy<K, V> implements ICPMap<K, V> {
     @Override
     public String getPartitionKey() {
         return null;
@@ -51,11 +52,6 @@ public class CPMapProxy<K, V> implements CPMap<K, V> {
     }
 
     @Override
-    public V get(Object key) {
-        return null;
-    }
-
-    @Override
     public V put(K key, V value) {
         return null;
     }
@@ -66,12 +62,12 @@ public class CPMapProxy<K, V> implements CPMap<K, V> {
     }
 
     @Override
-    public void set(K key, V value) {
-
+    public V putIfAbsent(K key, V value) {
+        return null;
     }
 
     @Override
-    public V putIfAbsent(K key, V value) {
+    public Map<K, V> putIfAbsentAll(Map<K, V> keyValues) {
         return null;
     }
 
@@ -81,14 +77,20 @@ public class CPMapProxy<K, V> implements CPMap<K, V> {
     }
 
     @Override
+    public Map<K, V> replaceAll(Map<K, V> keyValues) {
+        return null;
+    }
+
+    @Override
+    public Map<Object, V> removeAll(Set<Object> keys) {
+        return null;
+    }
+
+    @Override
     public boolean replace(K key, V oldValue, V newValue) {
         return false;
     }
 
-    @Override
-    public V remove(Object key) {
-        return null;
-    }
 
     @Override
     public void delete(Object key) {
@@ -97,11 +99,6 @@ public class CPMapProxy<K, V> implements CPMap<K, V> {
 
     @Override
     public boolean remove(Object key, Object value) {
-        return false;
-    }
-
-    @Override
-    public boolean isEmpty() {
         return false;
     }
 
@@ -127,6 +124,16 @@ public class CPMapProxy<K, V> implements CPMap<K, V> {
 
     @Override
     public Collection<V> values(Predicate<K, V> predicate) {
+        return null;
+    }
+
+    @Override
+    public Map<K, V> putAll(Map<K, V> keyValues) {
+        return null;
+    }
+
+    @Override
+    public Map<Object, V> getAll(Set<Object> keys) {
         return null;
     }
 }
