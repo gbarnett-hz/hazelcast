@@ -76,6 +76,7 @@ public interface IAtomicReference<E> extends DistributedObject {
      * was not equal to the expected value
      */
     boolean compareAndSet(E expect, E update);
+    boolean compareAndSetFingerprint(E expect, E update);
 
     /**
      * Gets the current value.

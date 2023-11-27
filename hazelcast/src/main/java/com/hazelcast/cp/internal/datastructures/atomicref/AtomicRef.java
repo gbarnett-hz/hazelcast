@@ -20,6 +20,8 @@ import com.hazelcast.cp.internal.datastructures.spi.atomic.RaftAtomicValue;
 import com.hazelcast.internal.serialization.Data;
 import com.hazelcast.cp.CPGroupId;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 
 /**
@@ -45,6 +47,41 @@ public class AtomicRef extends RaftAtomicValue<Data> {
 
     public boolean contains(Data expected) {
         return Objects.equals(value, expected);
+    }
+
+    static byte[] sha256Data(Data value) {
+        return sha256Bytes(value.toByteArray());
+    }
+
+    static byte[] sha256Bytes(byte[] value) {
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+        return digest.digest(value);
+    }
+
+    static String hex(byte[] sha256) {
+        StringBuilder hexString = new StringBuilder(2 * sha256.length);
+        for (byte b : sha256) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) {
+                hexString.append('0');
+            }
+            hexString.append(hex);
+        }
+        return hexString.toString();
+    }
+
+    public static String sha256Hex(Data data) {
+        return hex(sha256Data(data));
+    }
+
+    public boolean hasFingerprint(String expected) {
+        String actual = hex(sha256Data(value));
+        return Objects.equals(actual, expected);
     }
 
     @Override

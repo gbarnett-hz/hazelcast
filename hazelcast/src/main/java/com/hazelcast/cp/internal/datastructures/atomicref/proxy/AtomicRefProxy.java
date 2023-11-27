@@ -23,9 +23,11 @@ import com.hazelcast.cp.internal.RaftGroupId;
 import com.hazelcast.cp.internal.RaftInvocationManager;
 import com.hazelcast.cp.internal.RaftOp;
 import com.hazelcast.cp.internal.RaftService;
+import com.hazelcast.cp.internal.datastructures.atomicref.AtomicRef;
 import com.hazelcast.cp.internal.datastructures.atomicref.AtomicRefService;
 import com.hazelcast.cp.internal.datastructures.atomicref.operation.ApplyOp;
 import com.hazelcast.cp.internal.datastructures.atomicref.operation.CompareAndSetOp;
+import com.hazelcast.cp.internal.datastructures.atomicref.operation.CompareAndSetOpFingerprint;
 import com.hazelcast.cp.internal.datastructures.atomicref.operation.ContainsOp;
 import com.hazelcast.cp.internal.datastructures.atomicref.operation.GetOp;
 import com.hazelcast.cp.internal.datastructures.atomicref.operation.SetOp;
@@ -66,6 +68,17 @@ public class AtomicRefProxy<T> implements IAtomicReference<T> {
     @Override
     public boolean compareAndSet(T expect, T update) {
         return compareAndSetAsync(expect, update).joinInternal();
+    }
+
+    @Override
+    public boolean compareAndSetFingerprint(T expect, T update) {
+        Data expectedData = serializationService.toData(expect);
+        String fingerprint = AtomicRef.sha256Hex(expectedData);
+        Data updatedData = serializationService.toData(update);
+        CompareAndSetOpFingerprint compareAndSetOpFingerprint =
+                new CompareAndSetOpFingerprint(objectName, fingerprint, updatedData);
+        InternalCompletableFuture<Boolean> f = invocationManager.invoke(groupId, compareAndSetOpFingerprint);
+        return f.joinInternal();
     }
 
     @Override

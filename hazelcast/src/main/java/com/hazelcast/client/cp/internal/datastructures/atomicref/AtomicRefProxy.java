@@ -65,6 +65,11 @@ public class AtomicRefProxy<T> extends ClientProxy implements IAtomicReference<T
     }
 
     @Override
+    public boolean compareAndSetFingerprint(T expect, T update) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public T get() {
         return getAsync().joinInternal();
     }

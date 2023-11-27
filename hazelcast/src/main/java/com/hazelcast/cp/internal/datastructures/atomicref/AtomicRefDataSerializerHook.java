@@ -18,6 +18,7 @@ package com.hazelcast.cp.internal.datastructures.atomicref;
 
 import com.hazelcast.cp.internal.datastructures.atomicref.operation.ApplyOp;
 import com.hazelcast.cp.internal.datastructures.atomicref.operation.CompareAndSetOp;
+import com.hazelcast.cp.internal.datastructures.atomicref.operation.CompareAndSetOpFingerprint;
 import com.hazelcast.cp.internal.datastructures.atomicref.operation.ContainsOp;
 import com.hazelcast.cp.internal.datastructures.atomicref.operation.GetOp;
 import com.hazelcast.cp.internal.datastructures.atomicref.operation.SetOp;
@@ -40,6 +41,7 @@ public final class AtomicRefDataSerializerHook implements DataSerializerHook {
     public static final int GET_OP = 5;
     public static final int SET_OP = 6;
 
+    public static final int COMPARE_AND_SET_FINGER_OP = 7;
 
     @Override
     public int getFactoryId() {
@@ -62,6 +64,8 @@ public final class AtomicRefDataSerializerHook implements DataSerializerHook {
                     return new GetOp();
                 case SET_OP:
                     return new SetOp();
+                case COMPARE_AND_SET_FINGER_OP:
+                    return new CompareAndSetOpFingerprint();
                 default:
                     throw new IllegalArgumentException("Undefined type: " + typeId);
             }
