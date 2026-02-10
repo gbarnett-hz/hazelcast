@@ -51,6 +51,7 @@ final class ElasticSourceP<T> extends AbstractProcessor {
 
     private final ElasticSourceConfiguration<T> configuration;
     private final List<Shard> shards;
+    private final ElasticClientProxyFactory clientProxyFactory;
     private RestClient lowLevelClient;
     private RestClientTransport transport;
     private ElasticsearchClient client;
@@ -59,9 +60,58 @@ final class ElasticSourceP<T> extends AbstractProcessor {
 
     private ElasticScrollTraverser scrollTraverser;
 
+    @FunctionalInterface
+    interface ElasticClientProxyFactory {
+        ElasticClientProxy create(ElasticsearchClient client);
+    }
+
+    interface ElasticClientProxy {
+        SearchResponse<JsonData> search(SearchRequest request, TransportOptions options) throws Exception;
+
+        ScrollResponse<JsonData> scroll(ScrollRequest request, TransportOptions options) throws Exception;
+
+        ClearScrollResponse clearScroll(ClearScrollRequest request, TransportOptions options) throws Exception;
+    }
+
+    static final class DefaultElasticClientProxy implements ElasticClientProxy {
+        private final ElasticsearchClient client;
+
+        DefaultElasticClientProxy(ElasticsearchClient client) {
+            this.client = client;
+        }
+
+        @Override
+        public SearchResponse<JsonData> search(SearchRequest request, TransportOptions options) throws Exception {
+            return withOptions(options).search(request, JsonData.class);
+        }
+
+        @Override
+        public ScrollResponse<JsonData> scroll(ScrollRequest request, TransportOptions options) throws Exception {
+            return withOptions(options).scroll(request, JsonData.class);
+        }
+
+        @Override
+        public ClearScrollResponse clearScroll(ClearScrollRequest request, TransportOptions options) throws Exception {
+            return withOptions(options).clearScroll(request);
+        }
+
+        private ElasticsearchClient withOptions(TransportOptions options) {
+            return options == null ? client : client.withTransportOptions(options);
+        }
+    }
+
     ElasticSourceP(ElasticSourceConfiguration<T> configuration, List<Shard> shards) {
+        this(configuration, shards, DefaultElasticClientProxy::new);
+    }
+
+    ElasticSourceP(
+            ElasticSourceConfiguration<T> configuration,
+            List<Shard> shards,
+            ElasticClientProxyFactory clientProxyFactory
+    ) {
         this.configuration = configuration;
         this.shards = shards;
+        this.clientProxyFactory = clientProxyFactory;
     }
 
     @Override
@@ -111,7 +161,12 @@ final class ElasticSourceP<T> extends AbstractProcessor {
         }
 
         SearchRequest searchRequest = requestBuilder.build();
-        scrollTraverser = new ElasticScrollTraverser(configuration, client, searchRequest, logger);
+        scrollTraverser = new ElasticScrollTraverser(
+                configuration,
+                this.clientProxyFactory.create(client),
+                searchRequest,
+                logger
+        );
         traverser = scrollTraverser.map(configuration.mapToItemFn());
     }
 
@@ -152,7 +207,7 @@ final class ElasticSourceP<T> extends AbstractProcessor {
     static class ElasticScrollTraverser implements Traverser<Hit<JsonData>> {
 
         private final ILogger logger;
-        private final ElasticsearchClient client;
+        private final ElasticClientProxy clientProxy;
         private final FunctionEx<? super Object, TransportOptions> optionsFn;
         private final String scrollKeepAlive;
         private final int retries;
@@ -163,11 +218,11 @@ final class ElasticSourceP<T> extends AbstractProcessor {
 
         ElasticScrollTraverser(
                 ElasticSourceConfiguration<?> configuration,
-                ElasticsearchClient client,
+                ElasticClientProxy clientProxy,
                 SearchRequest searchRequest,
                 ILogger logger
         ) {
-            this.client = client;
+            this.clientProxy = clientProxy;
             this.optionsFn = configuration.optionsFn();
             this.scrollKeepAlive = configuration.scrollKeepAlive();
             this.retries = configuration.retries();
@@ -175,7 +230,7 @@ final class ElasticSourceP<T> extends AbstractProcessor {
 
             try {
                 SearchResponse<JsonData> response = withRetry(
-                        () -> withOptions(searchRequest).search(searchRequest, JsonData.class),
+                        () -> clientProxy.search(searchRequest, optionsFn.apply(searchRequest)),
                         retries
                 );
                 hits = response.hits().hits();
@@ -210,7 +265,7 @@ final class ElasticSourceP<T> extends AbstractProcessor {
                             .build();
 
                     ScrollResponse<JsonData> searchResponse = withRetry(
-                            () -> withOptions(scrollRequest).scroll(scrollRequest, JsonData.class),
+                            () -> clientProxy.scroll(scrollRequest, optionsFn.apply(scrollRequest)),
                             retries
                     );
                     hits = searchResponse.hits().hits();
@@ -237,7 +292,7 @@ final class ElasticSourceP<T> extends AbstractProcessor {
             ClearScrollRequest clearScrollRequest = new ClearScrollRequest.Builder().scrollId(scrollId).build();
             try {
                 ClearScrollResponse response = withRetry(
-                        () -> withOptions(clearScrollRequest).clearScroll(clearScrollRequest),
+                        () -> clientProxy.clearScroll(clearScrollRequest, optionsFn.apply(clearScrollRequest)),
                         retries
                 );
 
@@ -249,11 +304,6 @@ final class ElasticSourceP<T> extends AbstractProcessor {
             } catch (Exception e) {
                 logger.fine("Could not clear scroll with scrollId=" + scrollId, e);
             }
-        }
-
-        private ElasticsearchClient withOptions(Object request) {
-            TransportOptions options = optionsFn.apply(request);
-            return options == null ? client : client.withTransportOptions(options);
         }
     }
 }
