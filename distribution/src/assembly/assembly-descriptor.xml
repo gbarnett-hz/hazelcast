@@ -42,6 +42,7 @@
                 <include>com.hazelcast.jet:hazelcast-jet-cdc-postgres</include>
                 <include>com.hazelcast.jet:hazelcast-jet-csv</include>
                 <include>com.hazelcast.jet:hazelcast-jet-elasticsearch-7</include>
+                <include>com.hazelcast.jet:hazelcast-jet-elasticsearch-9</include>
                 <include>com.hazelcast.jet:hazelcast-jet-grpc</include>
                 <include>com.hazelcast.jet:hazelcast-jet-files-azure</include>
                 <include>com.hazelcast.jet:hazelcast-jet-files-gcs</include>

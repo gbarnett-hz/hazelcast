@@ -40,6 +40,7 @@
         <module>cdc-postgres</module>
         <module>csv</module>
         <module>elasticsearch/elasticsearch-7</module>
+        <module>elasticsearch/elasticsearch-9</module>
         <module>hadoop</module>
         <module>hadoop-dist</module>
         <module>kafka</module>
