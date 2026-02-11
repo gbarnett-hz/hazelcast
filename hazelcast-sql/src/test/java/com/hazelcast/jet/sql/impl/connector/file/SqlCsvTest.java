@@ -19,8 +19,10 @@ package com.hazelcast.jet.sql.impl.connector.file;
 import com.hazelcast.jet.sql.SqlTestSupport;
 import com.hazelcast.sql.HazelcastSqlException;
 import com.hazelcast.sql.SqlService;
+import com.hazelcast.test.HazelcastSerialClassRunner;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.math.BigDecimal;
 import java.nio.file.Paths;
@@ -37,6 +39,7 @@ import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+@RunWith(HazelcastSerialClassRunner.class)
 public class SqlCsvTest extends SqlTestSupport {
 
     private static final String RESOURCES_PATH = Paths.get("src/test/resources").toFile().getAbsolutePath();
@@ -71,7 +74,7 @@ public class SqlCsvTest extends SqlTestSupport {
     @Test
     public void test_dynamicParameters() {
         String name = randomName();
-        sqlService.execute("CREATE MAPPING " + name + " "
+        sqlService.executeUpdate("CREATE MAPPING " + name + " "
                 + "TYPE " + FileSqlConnector.TYPE_NAME + ' '
                 + "OPTIONS ("
                 + '\'' + OPTION_FORMAT + "'='" + CSV_FORMAT + '\''
@@ -157,7 +160,7 @@ public class SqlCsvTest extends SqlTestSupport {
     @Test
     public void test_schemaDiscovery() {
         String name = randomName();
-        sqlService.execute("CREATE MAPPING " + name + ' '
+        sqlService.executeUpdate("CREATE MAPPING " + name + ' '
                 + "TYPE " + FileSqlConnector.TYPE_NAME + ' '
                 + "OPTIONS ( "
                 + '\'' + OPTION_FORMAT + "'='" + CSV_FORMAT + '\''

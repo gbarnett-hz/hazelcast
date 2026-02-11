@@ -1507,7 +1507,7 @@ public class XMLConfigBuilderTest extends AbstractConfigBuilderTest {
                 + "  <map name=\"" + mapName + "\">\n"
                 + "    <near-cache name=\"test\">\n"
                 + "      <in-memory-format>OBJECT</in-memory-format>\n"
-                + "      <serialize-keys>false</serialize-keys>\n"
+                + "      <serialize-keys>true</serialize-keys>\n"
                 + "      <time-to-live-seconds>77</time-to-live-seconds>\n"
                 + "      <max-idle-seconds>92</max-idle-seconds>\n"
                 + "      <invalidate-on-change>false</invalidate-on-change>\n"
@@ -1522,6 +1522,7 @@ public class XMLConfigBuilderTest extends AbstractConfigBuilderTest {
         NearCacheConfig nearCacheConfig = mapConfig.getNearCacheConfig();
 
         assertEquals(InMemoryFormat.OBJECT, nearCacheConfig.getInMemoryFormat());
+        assertTrue(nearCacheConfig.isSerializeKeys());
         assertEquals(77, nearCacheConfig.getTimeToLiveSeconds());
         assertEquals(92, nearCacheConfig.getMaxIdleSeconds());
         assertFalse(nearCacheConfig.isInvalidateOnChange());
@@ -4062,6 +4063,7 @@ public class XMLConfigBuilderTest extends AbstractConfigBuilderTest {
                 + "  <base-dir>/mnt/cp-data</base-dir>\n"
                 + "  <data-load-timeout-seconds>30</data-load-timeout-seconds>\n"
                 + "  <cp-member-priority>-1</cp-member-priority>\n"
+                + "  <auto-step-down-when-leader>true</auto-step-down-when-leader>\n"
                 + "  <raft-algorithm>\n"
                 + "    <leader-election-timeout-in-millis>500</leader-election-timeout-in-millis>\n"
                 + "    <leader-heartbeat-period-in-millis>100</leader-heartbeat-period-in-millis>\n"
@@ -4149,6 +4151,7 @@ public class XMLConfigBuilderTest extends AbstractConfigBuilderTest {
         assertEquals("map2", mapConfig2.getName());
         assertEquals(2, mapConfig2.getMaxSizeMb());
         assertEquals(20, cpSubsystemConfig.getCPMapLimit());
+        assertTrue(cpSubsystemConfig.isAutoStepDownWhenLeader());
     }
 
     @Override

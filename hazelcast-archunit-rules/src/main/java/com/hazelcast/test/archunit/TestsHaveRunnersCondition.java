@@ -16,6 +16,7 @@
 
 package com.hazelcast.test.archunit;
 
+import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.AccessTarget.MethodCallTarget;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaCodeUnit;
@@ -27,11 +28,12 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized.UseParametersRunnerFactory;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
+
+import static com.hazelcast.test.archunit.TestAnnotationCategoryAndTagCheck.hasJunitTestCategoryOrTagAnnotation;
 
 /** Asserts that tests are annotated with `@RunWith` to ensure property isolation */
 public class TestsHaveRunnersCondition extends ArchCondition<JavaClass> {
@@ -65,12 +67,7 @@ public class TestsHaveRunnersCondition extends ArchCondition<JavaClass> {
             }
 
             // Has "ParallelJVMTest" tag
-            if (classToTest.isAnnotatedWith("com.hazelcast.test.annotation.ParallelJVMTest")
-                    || (classToTest.isAnnotatedWith(Category.class) && Arrays
-                            .stream(classToTest.getAnnotationOfType(Category.class)
-                                    .value())
-                            .map(Class::getName)
-                            .anyMatch("com.hazelcast.test.annotation.ParallelJVMTest"::equals))) {
+            if (hasParallelJvmTestTag(classToTest)) {
                 return true;
             }
 
@@ -97,5 +94,39 @@ public class TestsHaveRunnersCondition extends ArchCondition<JavaClass> {
                 .map(JavaMethodCall::getTarget)
                 .map(MethodCallTarget::getFullName)
                 .anyMatch(SYSTEM_PROPERTY_MODIFICATION_METHODS::contains);
+    }
+
+
+    private static boolean hasParallelJvmTestTag(JavaClass classToTest) {
+        return hasJunitTestCategoryOrTagAnnotation(classToTest, "com.hazelcast.test.annotation.ParallelJVMTest");
+    }
+
+    private static boolean hasParallelJvmTestTagRecursive(JavaClass classToTest) {
+        for (; classToTest.getSuperclass()
+                .isPresent(); classToTest = classToTest.getSuperclass().orElseThrow().toErasure()) {
+            if (hasParallelJvmTestTag(classToTest)) {
+                return true;
+            }
+            // find only the first Category annotation in hierarchy, because it is the one used by JUnit
+            if (classToTest.isAnnotatedWith(Category.class)) {
+                break;
+            }
+        }
+        return false;
+    }
+
+    private static class HasParallelJvmTestTag extends DescribedPredicate<JavaClass> {
+        HasParallelJvmTestTag() {
+            super("is annotated with @ParallelJvmTest");
+        }
+
+        @Override
+        public boolean test(JavaClass input) {
+            return hasParallelJvmTestTagRecursive(input);
+        }
+    }
+
+    public static DescribedPredicate<JavaClass> hasParallelJvmTestTag() {
+        return new HasParallelJvmTestTag();
     }
 }

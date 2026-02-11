@@ -525,7 +525,7 @@ public class MembershipManager {
 
             MemberMap memberMap = getMemberMap();
             Address masterAddress = clusterService.getMasterAddress();
-            if (memberMap.isBeforeThan(member.getAddress(), masterAddress)) {
+            if (masterAddress != null && memberMap.isBeforeThan(member.getAddress(), masterAddress)) {
                 if (logger.isFineEnabled()) {
                     logger.fine("Not removing suspicion of %s since it is before than current master %s in member list.",
                             member, masterAddress);
@@ -550,7 +550,7 @@ public class MembershipManager {
             Address masterAddress = clusterService.getMasterAddress();
             int memberListVersion = getMemberListVersion();
 
-            if (!(masterAddress.equals(caller) && memberListVersion == callerMemberListVersion)) {
+            if (masterAddress == null || !(masterAddress.equals(caller) && memberListVersion == callerMemberListVersion)) {
                 if (logger.isFineEnabled()) {
                     logger.fine("Ignoring explicit suspicion trigger for " + suspectedMembersViewMetadata
                             + ". Caller: " + caller + ", caller member list version: " + callerMemberListVersion
@@ -570,10 +570,15 @@ public class MembershipManager {
         clusterServiceLock.lock();
         try {
             MembersViewMetadata localMembersViewMetadata = createLocalMembersViewMetadata();
+            // During cluster state transitions (split-brain merge, master failover, etc.), this node may temporarily have
+            // no master address set. In this transitional state, processing explicit suspicions could lead to incorrect
+            // member removals. Instead, we log and ignore the suspicion; it should clear up once a master is selected
             if (localMembersViewMetadata.getMasterAddress() == null) {
-                throw new IllegalStateException(String.format(
-                        "Member received explicit suspicion from %s when no master configured. Caller member view: %s, local "
-                                + "member view: %s", suspectedAddress, expectedMembersViewMetadata, localMembersViewMetadata));
+                if (logger.isFineEnabled()) {
+                    logger.fine("Ignoring explicit suspicion from " + suspectedAddress + " - no master address defined"
+                            + ". Expected: " + expectedMembersViewMetadata + ", Local: " + localMembersViewMetadata);
+                }
+                return;
             }
             if (!localMembersViewMetadata.equals(expectedMembersViewMetadata)) {
                 if (logger.isFineEnabled()) {
@@ -983,7 +988,8 @@ public class MembershipManager {
                     EmptyStatement.ignore(ignored);
                 } catch (TimeoutException ignored) {
                     MemberInfo latestMemberInfo = latestMembersView.getMember(address);
-                    MemberImpl memberImpl = new MemberImpl(member.getAddress(), member.getVersion(), false, member.getUuid());
+                    MemberImpl memberImpl = new MemberImpl(member.getAddress(), member.getVersion(),
+                            false, member.getUuid());
                     if (mastershipClaimTimeout > 0 && !isMemberSuspected(memberImpl) && latestMemberInfo != null) {
                         // we don't suspect from 'address' and we need to learn its response
                         done = false;
@@ -1013,7 +1019,8 @@ public class MembershipManager {
         for (MemberInfo member : membersView.getMembers()) {
             Address memberAddress = member.getAddress();
             if (!(node.getThisAddress().equals(memberAddress)
-                    || isMemberSuspected(new MemberImpl(member.getAddress(), member.getVersion(), false, member.getUuid()))
+                    || isMemberSuspected(new MemberImpl(member.getAddress(), member.getVersion(), false,
+                    member.getUuid()))
                     || futures.containsKey(member))) {
                 // this is a new member for us - let's ask its members view
                 if (logger.isFineEnabled()) {

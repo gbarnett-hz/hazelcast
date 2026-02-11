@@ -1542,7 +1542,7 @@ public class YamlConfigBuilderTest extends AbstractConfigBuilderTest {
                 + "      near-cache:\n"
                 + "        name: test\n"
                 + "        in-memory-format: OBJECT\n"
-                + "        serialize-keys: false\n"
+                + "        serialize-keys: true\n"
                 + "        time-to-live-seconds: 77\n"
                 + "        max-idle-seconds: 92\n"
                 + "        invalidate-on-change: false\n"
@@ -1557,6 +1557,7 @@ public class YamlConfigBuilderTest extends AbstractConfigBuilderTest {
         NearCacheConfig nearCacheConfig = mapConfig.getNearCacheConfig();
 
         assertEquals(InMemoryFormat.OBJECT, nearCacheConfig.getInMemoryFormat());
+        assertTrue(nearCacheConfig.isSerializeKeys());
         assertEquals(77, nearCacheConfig.getTimeToLiveSeconds());
         assertEquals(92, nearCacheConfig.getMaxIdleSeconds());
         assertFalse(nearCacheConfig.isInvalidateOnChange());
@@ -4578,6 +4579,7 @@ public class YamlConfigBuilderTest extends AbstractConfigBuilderTest {
                     base-dir: /mnt/cp-data
                     data-load-timeout-seconds: 30
                     cp-member-priority: -1
+                    auto-step-down-when-leader: true
                     map-limit: 25
                     raft-algorithm:
                       leader-election-timeout-in-millis: 500
@@ -4648,6 +4650,7 @@ public class YamlConfigBuilderTest extends AbstractConfigBuilderTest {
         assertEquals("map2", mapConfig2.getName());
         assertEquals(2, mapConfig2.getMaxSizeMb());
         assertEquals(25, cpSubsystemConfig.getCPMapLimit());
+        assertTrue(cpSubsystemConfig.isAutoStepDownWhenLeader());
     }
 
     @Override

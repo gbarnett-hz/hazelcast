@@ -41,6 +41,9 @@ public interface CPMember {
      * Returns the UUID of this CP member. The CP member UUID does not have to
      * be same with the UUID of the local member that is accessed via
      * {@link Cluster#getLocalMember()}.
+     * <p>
+     * This UUID is used as the primary identifier of CP members. It cannot be
+     * changed without impacting the identity of this member in the CP subsystem.
      *
      * @return the UUID of this CP Member
      */
@@ -48,10 +51,37 @@ public interface CPMember {
 
     /**
      * Returns the address of this CP member.
-     * It is same with the address of {@link Cluster#getLocalMember()}
+     * It is same with the address of {@link Cluster#getLocalMember()}.
+     * <p>
+     * This Address can be changed, and the CP member will retain its identity,
+     * as the UUID is used to identify uniqueness in the CP subsystem. See
+     * {@code RaftService#replaceLocalMemberIfAddressChanged}.
      *
      * @return the address of this CP member
      */
     Address getAddress();
+
+    /**
+     * Returns whether this CP member is configured to automatically step down
+     * from leadership in non-metadata CP groups.
+     *
+     * <p>If {@code true}, whenever this member is elected leader, it will suspend
+     * replication, immediately trigger a leadership transfer, and resume normal
+     * operation once a leader-capable member takes over. Client operations are
+     * retried transparently and eventually succeed under the new leader.</p>
+     *
+     * <p>When this flag is enabled, the member's effective priority is treated as
+     * {@link Integer#MIN_VALUE} to prevent leader rebalancing from assigning
+     * leadership to a node that would immediately step down.</p>
+     *
+     * <p>This feature is useful when a node has high latency to the rest of the
+     * CP group, where holding leadership could destabilize replication. A brief
+     * unavailability window may occur during the leadership transfer, proportional
+     * to the RTT and log catch-up required for the target leader.</p>
+     *
+     * @return {@code true} if this member automatically steps down from leadership
+     * @since 5.7
+     */
+    boolean isAutoStepDownWhenLeader();
 
 }

@@ -16,13 +16,19 @@
 
 package com.hazelcast.mapstore;
 
-import java.util.Arrays;
+import com.hazelcast.core.HazelcastException;
+import com.hazelcast.sql.SqlColumnMetadata;
+
+import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 
+import static com.hazelcast.internal.tpcengine.util.Preconditions.checkNotNull;
 import static com.hazelcast.mapstore.GenericMapLoader.COLUMNS_PROPERTY;
 import static com.hazelcast.mapstore.GenericMapLoader.DATA_CONNECTION_REF_PROPERTY;
 import static com.hazelcast.mapstore.GenericMapLoader.EXTERNAL_NAME_PROPERTY;
@@ -30,6 +36,9 @@ import static com.hazelcast.mapstore.GenericMapLoader.ID_COLUMN_PROPERTY;
 import static com.hazelcast.mapstore.GenericMapLoader.LOAD_ALL_KEYS_PROPERTY;
 import static com.hazelcast.mapstore.GenericMapLoader.TYPE_NAME_PROPERTY;
 import static com.hazelcast.mapstore.GenericMapLoader.SINGLE_COLUMN_AS_VALUE;
+import static java.lang.System.lineSeparator;
+import static java.util.Arrays.stream;
+import static java.util.stream.Collectors.joining;
 
 /**
  * Holds the properties for GenericMapStore and GenericMapLoader
@@ -62,8 +71,7 @@ class GenericMapStoreProperties {
 
         String columnsProperty = properties.getProperty(COLUMNS_PROPERTY);
         if (columnsProperty != null) {
-            List<String> columnsList = Arrays.asList(columnsProperty.split(","));
-            this.columns = Collections.unmodifiableList(columnsList);
+            this.columns = stream(columnsProperty.split(",")).map(String::strip).toList();
         } else {
             columns = Collections.emptyList();
         }
@@ -92,4 +100,35 @@ class GenericMapStoreProperties {
         return allColumns;
     }
 
+    public void validateColumns(final Map<String, SqlColumnMetadata> columnMap) {
+        checkNotNull(columnMap, "columnMap can't be null");
+        String errors = allColumns.stream()
+                                  .map(columnName -> validateColumn(columnMap, columnName))
+                                  .filter(Objects::nonNull)
+                                  .collect(joining(", " + lineSeparator()));
+        if (!errors.isEmpty()) {
+            throw new HazelcastException(errors);
+        }
+    }
+
+    @Nullable
+    private String validateColumn(Map<String, SqlColumnMetadata> columnMap, String columnName) {
+        SqlColumnMetadata column = columnMap.get(columnName);
+        if (column == null) {
+            String text = "Column '" + columnName + "' not found";
+            if (columnName.equals(idColumn)) {
+                text += (", but is configured as `id-column` or referenced in the `columns` property. "
+                        + "Please either add '%s' column to the mapping "
+                        + "used by GenericMapStore or change the '%s' or '%s' property of the GenericMapStore")
+                        .formatted(columnName, ID_COLUMN_PROPERTY, COLUMNS_PROPERTY);
+            } else {
+                text += (", but is referenced in the `columns` property. "
+                        + "Please either add '%s' column to the mapping "
+                        + "used by GenericMapStore or change the '%s' property of the GenericMapStore")
+                        .formatted(columnName, COLUMNS_PROPERTY);
+            }
+            return text;
+        }
+        return null;
+    }
 }

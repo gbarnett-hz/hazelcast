@@ -28,6 +28,8 @@ import com.hazelcast.test.jdbc.TestDatabaseRecordProvider;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.experimental.categories.Category;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 
 import javax.annotation.Nonnull;
 import java.sql.Connection;
@@ -61,6 +63,7 @@ public abstract class JdbcSqlTestSupport extends SqlTestSupport {
     protected static SqlService sqlService;
 
     @BeforeClass
+    @BeforeAll
     public static void checkDockerEnabled() {
         assumeDockerEnabled();
     }
@@ -85,6 +88,7 @@ public abstract class JdbcSqlTestSupport extends SqlTestSupport {
     }
 
     @AfterClass
+    @AfterAll
     public static void afterClass() {
         if (databaseProvider != null) {
             databaseProvider.shutdown();
@@ -151,6 +155,13 @@ public abstract class JdbcSqlTestSupport extends SqlTestSupport {
         executeJdbc("CREATE TABLE " + tableName + " (" + String.join(", ", columns) + ")");
     }
 
+    /**
+     * Creates table with given column definitions
+     */
+    public static void dropTable(String tableName) throws SQLException {
+        executeJdbc("DROP TABLE " + tableName);
+    }
+
     public static void executeJdbc(String sql) throws SQLException {
         requireNonNull(dbConnectionUrl, "dbConnectionUrl must be set");
 
@@ -161,6 +172,12 @@ public abstract class JdbcSqlTestSupport extends SqlTestSupport {
             for (String part : parts) {
                 stmt.execute(part);
             }
+        }
+    }
+
+    public static void executeJdbc(List<String> sql) throws SQLException {
+        for (String s : sql) {
+            executeJdbc(s);
         }
     }
 
