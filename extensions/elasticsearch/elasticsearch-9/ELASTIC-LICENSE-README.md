@@ -1,23 +1,18 @@
 # Info about the Elastic License 2.0
 
-The Elastic company moved with the Elasticsearch product from Apache 2.0 license to Elastic license in release 7.11.
+This connector module uses Elasticsearch 9.x Java clients, including:
+- `co.elastic.clients:elasticsearch-java`
+- `org.elasticsearch.client:elasticsearch-rest-client`
 
-To keep Hazelcast code secure without vulnerable dependencies, Hazelcast uses the new Elastic-licensed Java HLRC client versions.
+The Elasticsearch client dependencies used by this module are licensed under Apache License 2.0.
 
-Read more about the license change on the Elastic FAQ page:
+This README is kept to provide licensing context for Elasticsearch usage and distribution terms.
+
+Read more on Elastic licensing here:
 https://www.elastic.co/pricing/faq/licensing
 
-The following FAQ question is related to Hazelcast elasticsearch-9 connector usage.
-
-> **I'm using Elasticsearch via APIs, how does this change affect me?**
->
-> This change does not affect how you use client libraries to access Elasticsearch. Our client libraries remain licensed under Apache 2.0, with the exception of our Java High Level Rest Client (Java HLRC).
->
-> The Java HLRC has dependencies on the core of Elasticsearch, and as a result this client library will be licensed under the Elastic License. Over time, we will eliminate this dependency and move the Java HLRC to be licensed under Apache 2.0. Until that time, for the avoidance of doubt, we do not consider using the Java HLRC as a client library in development of an application or library used to access Elasticsearch to constitute a derivative work under the Elastic License, and this will not have any impact on how you license the source code of your application using this client library or how you distribute it.
->
-> Update: The Java HLRC has been deprecated in 7.15.0 in favor of the Java API Client. The Java API Client is licensed under Apache 2.0.
->
-> If you have any questions, please reach out to us at elastic_license@elastic.co
+For Elasticsearch Java API Client licensing details, see:
+https://github.com/elastic/elasticsearch-java
 
 
 # Text of the Elastic License 2.0
