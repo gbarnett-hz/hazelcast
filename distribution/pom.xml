@@ -248,6 +248,12 @@
         </dependency>
         <dependency>
             <groupId>com.hazelcast.jet</groupId>
+            <artifactId>hazelcast-jet-elasticsearch-9</artifactId>
+            <version>${project.version}</version>
+            <classifier>${fat.dependency.classifier}</classifier>
+        </dependency>
+        <dependency>
+            <groupId>com.hazelcast.jet</groupId>
             <artifactId>hazelcast-jet-grpc</artifactId>
             <version>${project.version}</version>
             <classifier>${fat.dependency.classifier}</classifier>
